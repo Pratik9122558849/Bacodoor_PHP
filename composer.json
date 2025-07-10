@@ -1,0 +1,6 @@
+{
+    "require": {
+        "delight-im/base64": "^1.0",
+        "ext-zlib": "*"
+    }
+}
